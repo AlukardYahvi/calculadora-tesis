@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Riesgo Cardiometabólico y Hepático (MASLD)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos personalizados para la tesis */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+        }
+        /* Paleta de riesgo */
+        .risk-low { background-color: #d1fae5; color: #065f46; border-color: #34d399; }
+        .risk-moderate { background-color: #fef3c7; color: #92400e; border-color: #fcd34d; }
+        .risk-high { background-color: #fee2e2; color: #991b1b; border-color: #f87171; }
+        /* IPN/ESM Accent (Guinda/Maroon equivalent) */
+        .ipn-accent { color: #b91c1c; } 
+        .ipn-border { border-color: #b91c1c; } /* red-700 */
+        .ipn-bg { background-color: #b91c1c; }
+        .shadow-glow {
+            box-shadow: 0 0 15px rgba(185, 28, 28, 0.3); /* Guinda glow */
+        }
+
+        /* Estilos para el mensaje flotante (Google Sheets Status) */
+        #licam-msg {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            font-weight: 500;
+            z-index: 9999;
+            display: none;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div id="licam-msg" style="display: none;"></div>
+
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-2xl border-t-8 ipn-border">
+        <header class="text-center mb-8">
+            <div class="flex justify-center items-center space-x-6 mb-4">
+                <a href="https://www.esm.ipn.mx/" target="_blank" title="Escuela Superior de Medicina - IPN">
+                    <img src="https://placehold.co/80x80/b91c1c/ffffff?text=ESM" alt="Logo ESM" class="h-16 w-16 object-contain rounded-full shadow-md">
+                </a>
+                <a href="https://www.ipn.mx/" target="_blank" title="Instituto Politécnico Nacional">
+                    <img src="https://placehold.co/100x100/7c0000/ffffff?text=IPN" alt="Logo IPN" class="h-20 w-20 object-contain shadow-lg">
+                </a>
+                <a href="cemiztli.wixsite.com/cardiometabolismo" target="_blank" title="Laboratorio LICAM">
+                    <img src="https://placehold.co/80x80/374151/ffffff?text=LICAM" alt="Logo LICAM" class="h-16 w-16 object-contain rounded-full shadow-md">
+                </a>
+            </div>
+            <h1 class="text-3xl md:text-4xl font-bold ipn-accent">
+                Calculadora de Riesgo Cardiometabólico y Hepático (MASLD)
+            </h1>
+            <p class="text-lg text-gray-700 mt-2">
+                Proyecto de Tesis - Ingeniería en Biotecnología
+            </p>
+            <p class="mt-1 text-sm text-gray-500">
+                Herramienta desarrollada en colaboración con el IPN.
+            </p>
+        </header>
+
+        <div id="input-form">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2">1. Datos Básicos y Antropometría</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div>
+                    <label for="gender" class="block text-sm font-medium text-gray-700">Sexo</label>
+                    <select id="gender" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm rounded-md shadow-sm">
+                        <option value="male">Masculino</option>
+                        <option value="female">Femenino</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="age" class="block text-sm font-medium text-gray-700">Edad (años)</label>
+                    <input type="number" id="age" value="35" min="18" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                </div>
+                <div>
+                    <label for="height" class="block text-sm font-medium text-gray-700">Estatura (cm)</label>
+                    <input type="number" id="height" value="175" min="100" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                </div>
+                <div>
+                    <label for="weight" class="block text-sm font-medium text-gray-700">Peso (kg)</label>
+                    <input type="number" id="weight" value="85" min="30" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                </div>
+                <div>
+                    <label for="waist" class="block text-sm font-medium text-gray-700">Cintura (cm)</label>
+                    <input type="number" id="waist" value="95" min="50" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                    <p id="waist-note" class="mt-1 text-xs text-gray-500 italic"></p>
+                </div>
+            </div>
+
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2">2. Parámetros Bioquímicos</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div>
+                    <label for="glucose" class="block text-sm font-medium text-gray-700">Glucemia Ayunas (mg/dL)</label>
+                    <input type="number" id="glucose" value="110" min="40" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                </div>
+                <div>
+                    <label for="triglycerides" class="block text-sm font-medium text-gray-700">Triglicéridos (mg/dL)</label>
+                    <input type="number" id="triglycerides" value="180" min="20" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                </div>
+                <div>
+                    <label for="hdl" class="block text-sm font-medium text-gray-700">Colesterol HDL (mg/dL)</label>
+                    <input type="number" id="hdl" value="35" min="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                </div>
+                 <div>
+                    <label for="pas" class="block text-sm font-medium text-gray-700">Presión Sistólica (mmHg)</label>
+                    <input type="number" id="pas" value="135" min="80" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                </div>
+                 <div>
+                    <label for="pad" class="block text-sm font-medium text-gray-700">Presión Diastólica (mmHg)</label>
+                    <input type="number" id="pad" value="85" min="40" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                </div>
+            </div>
+            
+            <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-1">2.1. Promedio PA (Opcional - 3 Días)</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div>
+                    <label for="pa_d1_s" class="block text-sm font-medium text-gray-700">PA Día 1 S/D (mmHg)</label>
+                    <div class="flex space-x-2">
+                        <input type="number" id="pa_d1_s" placeholder="Sistólica" class="mt-1 block w-1/2 rounded-md border-gray-300 shadow-sm p-2 border">
+                        <input type="number" id="pa_d1_d" placeholder="Diastólica" class="mt-1 block w-1/2 rounded-md border-gray-300 shadow-sm p-2 border">
+                    </div>
+                </div>
+                 <div>
+                    <label for="pa_d2_s" class="block text-sm font-medium text-gray-700">PA Día 2 S/D (mmHg)</label>
+                    <div class="flex space-x-2">
+                        <input type="number" id="pa_d2_s" placeholder="Sistólica" class="mt-1 block w-1/2 rounded-md border-gray-300 shadow-sm p-2 border">
+                        <input type="number" id="pa_d2_d" placeholder="Diastólica" class="mt-1 block w-1/2 rounded-md border-gray-300 shadow-sm p-2 border">
+                    </div>
+                </div>
+                 <div>
+                    <label for="pa_d3_s" class="block text-sm font-medium text-gray-700">PA Día 3 S/D (mmHg)</label>
+                    <div class="flex space-x-2">
+                        <input type="number" id="pa_d3_s" placeholder="Sistólica" class="mt-1 block w-1/2 rounded-md border-gray-300 shadow-sm p-2 border">
+                        <input type="number" id="pa_d3_d" placeholder="Diastólica" class="mt-1 block w-1/2 rounded-md border-gray-300 shadow-sm p-2 border">
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500 italic">Usar para mayor confiabilidad (opcional).</p>
+                </div>
+            </div>
+
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2">3. Estilo de Vida y Recolección de Datos</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+                    <input type="email" id="email" placeholder="ejemplo@correo.com" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border">
+                    <p class="mt-1 text-xs text-gray-500 italic">Solo para envío de resultados.</p>
+                </div>
+                 <div>
+                    <label for="activity" class="block text-sm font-medium text-gray-700">Actividad Física (&ge; 30 min/día)</label>
+                    <select id="activity" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm rounded-md shadow-sm">
+                        <option value="yes">Sí (30 min/día)</option>
+                        <option value="no">No o Menos</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 italic">Factor protector: 150 min/semana.</p>
+                </div>
+                <div>
+                    <label for="family_history" class="block text-sm font-medium text-gray-700">Historia Familiar ECV/DM</label>
+                    <select id="family_history" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 rounded-md">
+                        <option value="no">No</option>
+                        <option value="yes">Sí (Padres/Hermanos)</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 italic">Enfermedad Cardiovascular o Diabetes Mellitus.</p>
+                </div>
+                <div>
+                    <label for="smoker" class="block text-sm font-medium text-gray-700">Tabaquismo</label>
+                    <select id="smoker" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm rounded-md shadow-sm">
+                        <option value="never">Nunca Fumador</option>
+                        <option value="ex_smoker">Ex Fumador</option>
+                        <option value="occasional">Fumador Ocasional</option>
+                        <option value="actual">Fumador Actual</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="sugar_intake" class="block text-sm font-medium text-gray-700">Consumo Diario de BAA</label>
+                    <select id="sugar_intake" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 rounded-md">
+                        <option value="no">No o Rara Vez</option>
+                        <option value="yes">Sí (Refrescos/Jugos)</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 italic">Bebidas Azucaradas Añadidas (BAA).</p>
+                </div>
+            </div>
+
+            <button onclick="calculateRisk()" class="w-full mt-4 py-3 px-6 border border-transparent rounded-lg shadow-glow text-lg font-medium text-white ipn-bg hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150 ease-in-out">
+                Calcular Riesgo Cardiometabólico y Hepático
+            </button>
+        </div>
+
+        <div id="results-section" class="hidden mt-10">
+            <h2 class="text-3xl font-bold ipn-accent mb-6 border-b-4 ipn-border pb-3">4. Resultados y Plan de Acción</h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                <div class="p-6 rounded-xl border-2">
+                    <h3 class="text-xl font-semibold mb-3 ipn-accent flex items-center">
+                        <svg class="w-6 h-6 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        Riesgo Global Evaluado
+                    </h3>
+                    <div id="rcm-result" class="text-center p-4 rounded-lg font-bold text-2xl mb-4 transition duration-300"></div>
+                    <div id="mahld-result" class="text-center p-4 rounded-lg font-bold text-2xl mb-4 transition duration-300"></div>
+                    
+                    <div class="text-sm text-gray-600">
+                        <p class="mt-2"><span class="font-semibold text-gray-700">IMC Calculado:</span> <span id="bmi-val"></span> <span id="bmi-class" class="font-bold"></span></p>
+                        <p><span class="font-semibold text-gray-700">Criterios de SM (Cumplidos):</span> <span id="sm-count"></span>/5</p>
+                        <p><span class="font-semibold text-gray-700">Puntaje IHG (MASLD):</span> <span id="fli-score"></span> (Alto riesgo si > 60)</p>
+                    </div>
+                </div>
+
+                <div class="p-6 rounded-xl border-2 bg-gray-50">
+                    <h3 class="text-xl font-semibold mb-3 ipn-accent flex items-center">
+                        <svg class="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.018A9.001 9.001 0 0120.975 18H3.025a9.001 9.001 0 0113.882-10.426M12 2v20"></path></svg>
+                        Factores Clave
+                    </h3>
+                    <ul id="risk-factors-list" class="space-y-2 text-sm text-gray-700">
+                        </ul>
+                </div>
+            </div>
+
+            <div class="mt-8">
+                <button onclick="copyResults()" class="w-full py-2 px-4 border border-green-600 rounded-lg shadow-sm text-sm font-medium text-white bg-green-500 hover:bg-green-600 transition duration-150 ease-in-out">
+                    Copiar Resultados y Recomendaciones
+                </button>
+            </div>
+
+            <div class="mt-8 p-6 rounded-xl border-2 border-green-500 bg-green-50">
+                <h3 class="text-2xl font-bold mb-4 text-green-700 flex items-center">
+                    <svg class="w-7 h-7 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6"></path></svg>
+                    Plan de Acción Personalizado
+                </h3>
+                <ul id="recommendations-list" class="space-y-3 text-gray-800 list-disc ml-5">
+                    </ul>
+            </div>
+
+             <div class="mt-8 text-center border-t pt-4">
+                 <p class="text-xs text-gray-500 italic">**Nota Importante:** Esta herramienta es parte de un proyecto de tesis y no sustituye la evaluación médica profesional. Consulte a su médico para un diagnóstico y tratamiento precisos.</p>
+             </div>
+        </div>
+        
+        <div class="border-t pt-4 mt-8"></div> 
+
+        <div id="project-info" class="p-4 bg-gray-50 rounded-lg text-sm">
+            <h3 class="font-bold text-lg ipn-accent mb-2 border-b pb-1">Información del Proyecto y Colaboradores</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <p class="font-semibold text-gray-700">Presenta y Asesoría:</p>
+                    <p class="text-gray-600"><strong>Edsel Yahvi Méndez Hernández</strong></p>
+                    <p class="text-gray-600">Asesora Externa: Dra. Nayelli Nájera García</p>
+                    <p class="text-gray-600">Asesor Interno (Docente): Dr. Bustos García Juan Roberto Israel</p>
+                    <p class="font-semibold text-gray-700 mt-2">Institución:</p>
+                    <p class="text-gray-600">
+                        <a href="https://www.esm.ipn.mx/" target="_blank" class="ipn-accent hover:text-red-800 font-semibold underline">
+                            Escuela Superior de Medicina (ESM) - IPN
+                        </a>
+                    </p>
+                </div>
+                <div>
+                    <p class="font-semibold text-gray-700">Laboratorio Colaborador (LICAM):</p>
+                    <p class="text-gray-600">Investigación Integral Cardiometabólica (IPN)</p>
+                    
+                    <p class="font-semibold text-gray-700 mt-2">Contacto y Ubicación:</p>
+                    <p class="text-gray-600">
+                        <span class="font-medium">Ubicación:</span> Plan de San Luis y Díaz Mirón s/n Col. Casco de Santo Tomás, Miguel Hidalgo, 11340, Ciudad de México, CDMX.
+                    </p>
+                    <p class="text-gray-600">
+                        <span class="font-medium">Correo:</span> nnajerag@ipn.mx
+                    </p>
+                    <p class="text-gray-600">
+                        <span class="font-medium">Teléfono:</span> 55 5729 6300 ext 62820
+                    </p>
+                    <p class="text-gray-600 mt-2">
+                         <span class="font-medium">Sitio Web/Redes:</span> 
+                         <a href="cemiztli.wixsite.com/cardiometabolismo" target="_blank" class="ipn-accent hover:text-red-800 font-semibold underline">
+                             cemiztli.wixsite.com/cardiometabolismo
+                         </a>,
+                         <a href="https://www.facebook.com/licam.ipn" target="_blank" class="ipn-accent hover:text-red-800 font-semibold underline">
+                             Facebook
+                         </a>,
+                         <a href="https://www.instagram.com/ipn_licam_lab" target="_blank" class="text-pink-600 hover:text-pink-800 font-semibold underline">
+                             Instagram
+                         </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =======================================================
+        // ========== GOOGLE SHEETS & DATA RECOLLECTION ==========
+        // =======================================================
+        
+        // ==================================================================
+        // ¡LISTO! Tu URL de Google Sheets ha sido insertada.
+        // ==================================================================
+        
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcopAWaia_azT6z2mnyo5cBIHMJwixEhIpjKuyXXlYcCTTe0jaImObrW66yG3fny64Hw/exec"; 
+
+        // ==================================================================
+        // (No necesitas editar nada más)
+        // ==================================================================
+
+
+        /**
+         * Muestra un mensaje de confirmación o error en pantalla (flotante).
+         */
+        function mostrarMensaje(texto, esError = false) {
+            let msg = document.getElementById('licam-msg');
+            if (!msg) {
+                msg = document.createElement('div');
+                msg.id = 'licam-msg';
+                msg.style.position = 'fixed';
+                msg.style.bottom = '20px';
+                msg.style.right = '20px';
+                msg.style.padding = '10px 14px';
+                msg.style.borderRadius = '8px';
+                msg.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+                msg.style.fontWeight = '500';
+                msg.style.zIndex = 9999;
+                document.body.appendChild(msg);
+            }
+            msg.style.background = esError ? '#f8d7da' : '#d1e7dd';
+            msg.style.color = esError ? '#842029' : '#0f5132';
+            msg.textContent = texto;
+            msg.style.display = 'block';
+            clearTimeout(msg._timeoutId);
+            msg._timeoutId = setTimeout(() => msg.style.display = 'none', 4000);
+        }
+
+        /**
+         * Envía los datos a Google Sheets.
+         */
+        async function guardarDatos(datos) {
+            
+            if (SCRIPT_URL === "¡¡¡AQUÍ VA TU URL ÚNICA DE GOOGLE APPS SCRIPT!!!") {
+                mostrarMensaje("⚠️ Error: SCRIPT_URL no configurada. (Revisar código)", true);
+                console.error("Detenido: SCRIPT_URL no ha sido reemplazada en el HTML.");
+                return;
+            }
+            
+            try {
+                // Prepara los datos en un formato plano y legible para Google Sheets
+                const dataToSend = {
+                    fecha: new Date().toLocaleString(),
+                    email: datos.user_input.email,
+                    edad: datos.user_input.age,
+                    genero: datos.user_input.gender,
+                    peso: datos.user_input.weight,
+                    altura: datos.user_input.height_cm,
+                    cintura: datos.user_input.waist,
+                    glucosa: datos.user_input.glucose,
+                    trigliceridos: datos.user_input.triglycerides,
+                    hdl: datos.user_input.hdl,
+                    pas_usada: datos.user_input.pa_used_s,
+                    pad_usada: datos.user_input.pa_used_d,
+                    fuente_pa: datos.user_input.pa_used_source,
+                    actividad: datos.user_input.activity,
+                    fumador: datos.user_input.smoker,
+                    azucares: datos.user_input.sugar_intake,
+                    historial_familiar: datos.user_input.family_history,
+                    // Resultados
+                    imc: datos.calculated_results.bmi,
+                    criterios_sm: datos.calculated_results.sm_criteria_count,
+                    rcm_nivel: datos.calculated_results.rcm_level,
+                    fli_score: datos.calculated_results.fli_score,
+                    mahld_nivel: datos.calculated_results.mahld_level,
+                };
+                
+                // --- SOLUCIÓN ALTERNATIVA CORS EN EL CLIENTE (FORZAR NO-CORS) ---
+                const response = await fetch(SCRIPT_URL, {
+                    method: "POST",
+                    mode: 'no-cors', // Permite que el navegador envíe la petición sin esperar la cabecera CORS
+                    body: JSON.stringify(dataToSend),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                mostrarMensaje("✅ Datos enviados (Verificar en Google Sheets).");
+            } catch (err) {
+                console.error("Error al guardar datos:", err);
+                mostrarMensaje("⚠️ Error de conexión: Datos no guardados. (Consulte al administrador)", true);
+            }
+        }
+        
+        // =======================================================
+        // ========== CORE CALCULATOR LOGIC (Original v1) ===========
+        // =======================================================
+        
+        const CRITERIA = {
+            WAIST_MALE: 90, 
+            WAIST_FEMALE: 80, 
+            GLUCOSE: 100, 
+            TRIGLYCERIDES: 150, 
+            HDL_MALE: 40, 
+            HDL_FEMALE: 50, 
+            PAS: 130, 
+            PAD: 85, 
+            MAFLD_FLI_CUTOFF: 60, 
+        };
+
+        // Corrección: El selector usa 'gender', pero la etiqueta HTML es 'Sexo'
+        document.getElementById('gender').addEventListener('change', updateWaistNote);
+        document.getElementById('waist').addEventListener('focus', updateWaistNote);
+
+        function updateWaistNote() {
+            const gender = document.getElementById('gender').value;
+            const cutoff = gender === 'male' ? CRITERIA.WAIST_MALE : CRITERIA.WAIST_FEMALE;
+            const recommended = gender === 'male' ? '< 90 cm' : '< 80 cm';
+            document.getElementById('waist-note').textContent = 
+                `Recomendación (Mexicano/Latino): ${recommended}. Riesgo si ≥ ${cutoff} cm.`;
+        }
+        updateWaistNote();
+
+
+        function calculateFLI(bmi, tg, waist) {
+            const ln_tg = Math.log(tg);
+            const ln_waist = Math.log(waist);
+            const X = (0.953 * ln_tg) + (0.139 * bmi) + (0.718 * ln_waist) - 13.9; 
+            const fli = (Math.exp(X) / (1 + Math.exp(X))) * 100;
+            return Math.min(fli, 100).toFixed(1);
+        }
+
+        function calculateAverageBP() {
+            const bp_readings = [];
+            for (let i = 1; i <= 3; i++) {
+                const s = parseInt(document.getElementById(`pa_d${i}_s`).value);
+                const d = parseInt(document.getElementById(`pa_d${i}_d`).value);
+                if (!isNaN(s) && !isNaN(d)) {
+                    bp_readings.push({ s, d });
+                }
+            }
+            if (bp_readings.length > 0) {
+                const total_s = bp_readings.reduce((sum, reading) => sum + reading.s, 0);
+                const total_d = bp_readings.reduce((sum, reading) => sum + reading.d, 0);
+                return {
+                    pas: Math.round(total_s / bp_readings.length),
+                    pad: Math.round(total_d / bp_readings.length)
+                };
+            }
+            return null;
+        }
+        
+        function calculateRisk() {
+            // 1. Obtener inputs
+            const email = document.getElementById('email').value;
+            const age = parseInt(document.getElementById('age').value);
+            const gender = document.getElementById('gender').value;
+            const height_cm = parseInt(document.getElementById('height').value);
+            const height = height_cm / 100;
+            const weight = parseInt(document.getElementById('weight').value);
+            const waist = parseInt(document.getElementById('waist').value);
+            const glucose = parseInt(document.getElementById('glucose').value);
+            const triglycerides = parseInt(document.getElementById('triglycerides').value);
+            const hdl = parseInt(document.getElementById('hdl').value);
+            let pas = parseInt(document.getElementById('pas').value);
+            let pad = parseInt(document.getElementById('pad').value);
+            const activity = document.getElementById('activity').value;
+            const smoker = document.getElementById('smoker').value;
+            const sugar_intake = document.getElementById('sugar_intake').value;
+            const family_history = document.getElementById('family_history').value;
+            
+            const averageBP = calculateAverageBP();
+            const bp_used = averageBP ? 'Average' : 'Single';
+
+            if (averageBP) { pas = averageBP.pas; pad = averageBP.pad; }
+
+            // Validación
+            if (!age || !height_cm || !weight || !waist || !glucose || !triglycerides || !hdl || !pas || !pad || height < 1) {
+                alert("Por favor, complete todos los campos de entrada válidos.");
+                return;
+            }
+
+            // 2. Cálculos Primarios
+            const bmi = weight / (height * height);
+            const bmi_rounded = bmi.toFixed(1);
+            let sm_criteria_count = 0;
+            let risk_score_rcm = 0; 
+            const risk_factors_list = [];
+            const recommendations = [];
+
+            // Calculos de pérdida de peso en KG
+            const weight_loss_5kg = (weight * 0.05).toFixed(1);
+            const weight_loss_7kg = (weight * 0.07).toFixed(1);
+            const weight_loss_10kg = (weight * 0.10).toFixed(1);
+            
+            // 3. Evaluación de Criterios (RCM & SM)
+            const waist_cutoff = (gender === 'male' ? CRITERIA.WAIST_MALE : CRITERIA.WAIST_FEMALE);
+            if (waist >= waist_cutoff) {
+                sm_criteria_count++;
+                risk_score_rcm += 3;
+                risk_factors_list.push('<li class="text-red-600">Obesidad Abdominal (Cintura &ge; ' + waist_cutoff + ' cm).</li>');
+                recommendations.push(`<strong class="text-red-700">OBJETIVO PESO & CINTURA:</strong> Enfocar la pérdida de grasa visceral. Meta inicial: **5% (${weight_loss_5kg} kg)**.`);
+            } else {
+                 risk_factors_list.push('<li class="text-green-600">Circunferencia Abdominal Normal.</li>');
+            }
+
+            if (triglycerides >= CRITERIA.TRIGLYCERIDES) {
+                sm_criteria_count++; risk_score_rcm += 2;
+                risk_factors_list.push('<li class="text-red-600">Hipertrigliceridemia (&ge; 150 mg/dL).</li>');
+                recommendations.push('Reducir drásticamente **azúcares añadidos** y carbohidratos refinados (factor principal de TG elevados).');
+            } else {
+                risk_factors_list.push('<li class="text-green-600">Triglicéridos Normales.</li>');
+            }
+
+            const hdl_cutoff = (gender === 'male' ? CRITERIA.HDL_MALE : CRITERIA.HDL_FEMALE);
+            if (hdl < hdl_cutoff) {
+                sm_criteria_count++; risk_score_rcm += 2;
+                risk_factors_list.push('<li class="text-red-600">Colesterol HDL Bajo (< ' + hdl_cutoff + ' mg/dL).</li>');
+                recommendations.push('Aumentar el **ejercicio aeróbico** regular y grasas saludables (aguacate, nueces) para elevar el c-HDL.');
+            } else {
+                risk_factors_list.push('<li class="text-green-600">Colesterol HDL Normal.</li>');
+            }
+
+            if (glucose >= CRITERIA.GLUCOSE) {
+                sm_criteria_count++; risk_score_rcm += 3;
+                risk_factors_list.push('<li class="text-red-600">Glucemia Elevada (&ge; 100 mg/dL).</li>');
+                recommendations.push(`<strong class="text-red-700">CONTROL GLUCÉMICO:</strong> Meta de pérdida de peso **&ge; 7% (${weight_loss_7kg} kg)** y aumentar actividad física para mejorar sensibilidad a la insulina.`);
+            } else {
+                 risk_factors_list.push('<li class="text-green-600">Glucemia Normal.</li>');
+            }
+
+            const is_hypertensive = (pas >= CRITERIA.PAS || pad >= CRITERIA.PAD);
+            if (is_hypertensive) {
+                 sm_criteria_count++; risk_score_rcm += 3;
+                risk_factors_list.push('<li class="text-red-600">Presión Arterial Elevada (&ge; 130/85 mmHg). (PA utilizada: ' + pas + '/' + pad + ' mmHg)</li>');
+                recommendations.push(`Monitorizar PA. La **pérdida de peso > 5% (${weight_loss_5kg} kg)** puede reducir la PA en 5 mmHg o más.`);
+            } else {
+                risk_factors_list.push('<li class="text-green-600">Presión Arterial Normal. (PA utilizada: ' + pas + '/' + pad + ' mmHg)</li>');
+            }
+
+            if (bmi >= 30) {
+                 risk_score_rcm += 2; 
+                 risk_factors_list.push('<li class="text-red-600">Obesidad General (IMC ' + bmi_rounded + ').</li>');
+                 recommendations.push(`<strong class="text-red-700">OBJETIVO MÁXIMO DE PESO:</strong> Enfoque intensivo con meta de **&ge; 10% (${weight_loss_10kg} kg)** para revertir múltiples comorbilidades.`);
+            } else if (bmi >= 25) {
+                 risk_factors_list.push('<li class="text-yellow-600">Sobrepeso (IMC ' + bmi_rounded + ').</li>');
+            } else {
+                risk_factors_list.push('<li class="text-green-600">IMC Normal (' + bmi_rounded + ').</li>');
+            }
+
+            let smoker_risk = 0; let smoker_status_text = 'Nunca Fumador';
+            if (smoker === 'actual') { smoker_risk = 3; smoker_status_text = 'Fumador Actual'; }
+            else if (smoker === 'occasional') { smoker_risk = 2; smoker_status_text = 'Fumador Ocasional'; }
+            else if (smoker === 'ex_smoker') { smoker_status_text = 'Ex Fumador'; }
+            risk_score_rcm += smoker_risk;
+            if (smoker_risk > 0) {
+                 risk_factors_list.push('<li class="text-red-600">Tabaquismo (' + smoker_status_text + ').</li>');
+                 recommendations.push('<strong class="text-red-700">CERO TABACO:</strong> El cese del tabaquismo es la intervención más importante para reducir la mortalidad. ¡Busque apoyo!');
+            } else {
+                risk_factors_list.push('<li class="text-green-600">Tabaquismo: Nunca Fumador.</li>');
+            }
+            
+            if (family_history === 'yes') {
+                 risk_score_rcm += 2;
+                 risk_factors_list.push('<li class="text-red-600">Historia Familiar Positiva (ECV/DM).</li>');
+                 recommendations.push('Su carga genética de riesgo es mayor. Requiere **prevención primordial** (estilo de vida óptimo) para mitigar el riesgo hereditario.');
+            } else {
+                 risk_factors_list.push('<li class="text-green-600">Historia Familiar Negativa (ECV/DM).</li>');
+            }
+
+            if (sugar_intake === 'yes') {
+                 risk_score_rcm += 1;
+                 risk_factors_list.push('<li class="text-red-600">Alto Consumo de Bebidas Azucaradas (BAA).</li>');
+                 recommendations.push('Eliminar el consumo diario de BAA (refrescos/jugos) para reducir triglicéridos y el riesgo metabólico.');
+            }
+
+            if (activity === 'no') {
+                 risk_score_rcm += 1;
+                 risk_factors_list.push('<li class="text-red-600">Sedentarismo / No cumple 30 min/día.</li>');
+                 recommendations.push('Priorizar $\mathbf{\ge 30 \text{ min/día}}$ de actividad moderada. El sedentarismo es un factor de riesgo independiente.');
+            }
+
+            // 4. Evaluación de Riesgo Hepático (MASLD)
+            const fli_score = calculateFLI(bmi, triglycerides, waist);
+            let mahld_risk_level = '';
+            let mahld_risk_class = '';
+            
+            if (parseFloat(fli_score) >= CRITERIA.MAFLD_FLI_CUTOFF) {
+                mahld_risk_level = 'ALTO RIESGO de MASLD';
+                mahld_risk_class = 'risk-high';
+                risk_score_rcm += 3;
+                recommendations.push('**RIESGO HEPÁTICO (MASLD):** Evaluación médica urgente para confirmar la esteatosis y evaluar fibrosis hepática.');
+            } else if (parseFloat(fli_score) >= 30) {
+                 mahld_risk_level = 'RIESGO MODERADO de MASLD';
+                 mahld_risk_class = 'risk-moderate';
+            } else {
+                 mahld_risk_level = 'BAJO RIESGO de MASLD';
+                 mahld_risk_class = 'risk-low';
+            }
+            
+            // 5. Nivel de Riesgo Global (RCM)
+            let rcm_level = '';
+            let rcm_class = '';
+
+            if (risk_score_rcm >= 10 || sm_criteria_count >= 3 || parseFloat(fli_score) >= CRITERIA.MAFLD_FLI_CUTOFF) {
+                rcm_level = 'RIESGO CARDIOVASCULAR ALTO';
+                rcm_class = 'risk-high';
+            } else if (risk_score_rcm >= 5 || sm_criteria_count >= 2) {
+                rcm_level = 'RIESGO CARDIOVASCULAR MODERADO';
+                rcm_class = 'risk-moderate';
+            } else {
+                rcm_level = 'RIESGO CARDIOVASCULAR BAJO';
+                rcm_class = 'risk-low';
+            }
+
+            // 6. Recomendaciones (Simplificadas)
+            if (gender === 'female' && bmi_rounded >= 25) {
+                 recommendations.push('Como mujer con sobrepeso/obesidad, su perfil puede requerir atención dietética especializada, enfocada en la calidad de carbohidratos y grasas.');
+            }
+            if (rcm_class === 'risk-high' && (glucose >= 100 || parseFloat(fli_score) >= CRITERIA.MAFLD_FLI_CUTOFF)) {
+                 recommendations.push('Dado su nivel de riesgo y la alta susceptibilidad en la población mexicana, un **cambio de estilo de vida intensivo** es crucial para prevenir complicaciones serias.');
+            }
+
+            // 7. Generación del Objeto de Datos (para guardado y copia)
+            const result_data = {
+                user_input: {
+                    email: email,
+                    age: age,
+                    gender: gender,
+                    height_cm: height_cm,
+                    weight: weight,
+                    waist: waist,
+                    glucose: glucose,
+                    triglycerides: triglycerides,
+                    hdl: hdl,
+                    pas_single: parseInt(document.getElementById('pas').value),
+                    pad_single: parseInt(document.getElementById('pad').value),
+                    pa_used_s: pas,
+                    pa_used_d: pad,
+                    pa_used_source: bp_used,
+                    activity: activity,
+                    smoker: smoker,
+                    sugar_intake: sugar_intake,
+                    family_history: family_history
+                },
+                calculated_results: {
+                    bmi: bmi_rounded,
+                    sm_criteria_count: sm_criteria_count,
+                    fli_score: fli_score,
+                    rcm_score: risk_score_rcm,
+                    rcm_level: rcm_level,
+                    mahld_level: mahld_risk_level,
+                    waist_cutoff: waist_cutoff
+                },
+                timestamp: new Date().toISOString()
+            };
+            
+            window.lastResultData = result_data; 
+
+            // 8. Renderizar Resultados
+            document.getElementById('rcm-result').className = `text-center p-4 rounded-lg font-bold text-2xl mb-4 transition duration-300 ${rcm_class}`;
+            document.getElementById('rcm-result').textContent = rcm_level + ' (' + sm_criteria_count + ' Criterios de SM)';
+            
+            document.getElementById('mahld-result').className = `text-center p-4 rounded-lg font-bold text-2xl transition duration-300 ${mahld_risk_class}`;
+            document.getElementById('mahld-result').textContent = mahld_risk_level + ' (MASLD)';
+
+            document.getElementById('sm-count').textContent = sm_criteria_count;
+            document.getElementById('bmi-val').textContent = bmi_rounded;
+            document.getElementById('bmi-class').textContent = bmi >= 30 ? '(Obesidad)' : bmi >= 25 ? '(Sobrepeso)' : '(Normal)';
+
+            document.getElementById('fli-score').textContent = fli_score;
+
+            document.getElementById('risk-factors-list').innerHTML = risk_factors_list.join('');
+            document.getElementById('recommendations-list').innerHTML = recommendations.map(r => `<li>${r}</li>`).join('');
+
+            document.getElementById('input-form').classList.add('hidden');
+            document.getElementById('results-section').classList.remove('hidden');
+            window.scrollTo(0, 0);
+
+            // 9. ENVIAR DATOS A GOOGLE SHEETS
+            guardarDatos(result_data);
+        }
+
+        /**
+         * Copia los resultados del cálculo en texto plano al portapapeles.
+         */
+        window.copyResults = function() {
+            if (window.lastResultData) {
+                // Generar texto plano de resultados y recomendaciones
+                const rcmLevel = document.getElementById('rcm-result').textContent;
+                const mahldLevel = document.getElementById('mahld-result').textContent;
+                const bmiText = document.getElementById('bmi-val').textContent + ' ' + document.getElementById('bmi-class').textContent;
+                const smCount = document.getElementById('sm-count').textContent;
+                const fliScore = document.getElementById('fli-score').textContent;
+                const factorsList = Array.from(document.getElementById('risk-factors-list').children).map(li => '- ' + li.textContent.trim()).join('\n');
+                const recList = Array.from(document.getElementById('recommendations-list').children).map(li => '* ' + li.textContent.trim()).join('\n');
+
+                const plainTextResults = 
+                    `--- RESULTADOS DE RIESGO CARDIOMETABÓLICO ---\n\n` +
+                    `RIESGO GLOBAL: ${rcmLevel}\n` +
+                    `RIESGO HEPÁTICO: ${mahldLevel}\n\n` +
+                    `Parámetros Generales:\n` +
+                    `  IMC: ${bmiText}\n` +
+                    `  Criterios de SM Cumplidos: ${smCount}/5\n` +
+                    `  Puntaje IHG (MASLD): ${fliScore}\n\n` +
+                    `Factores Contribuyentes:\n${factorsList}\n\n` +
+                    `PLAN DE ACCIÓN PERSONALIZADO:\n${recList}\n` +
+                    `------------------------------------------------\n`;
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(plainTextResults).then(() => {
+                        alert('¡Resultados copiados! El resumen en texto plano ha sido guardado en el portapapeles.');
+                    }).catch(err => {
+                        console.error('Error al copiar: ', err);
+                        alert('Error al copiar al portapapeles.');
+                    });
+                } else {
+                    // Fallback para navegadores antiguos
+                    const textarea = document.createElement('textarea');
+                    textarea.value = plainTextResults;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    alert('¡Resultados copiados! El resumen en texto plano ha sido guardado en el portapapeles.');
+                }
+
+                console.log("Resumen de resultados:\n", plainTextResults);
+            } else {
+                alert("No hay datos de sesión para copiar.");
+            }
+        }
+
+        // Función para resetear el formulario
+        window.resetForm = function() {
+            document.getElementById('input-form').classList.remove('hidden');
+            document.getElementById('results-section').classList.add('hidden');
+        }
+    </script>
+    
+    <button onclick="resetForm()" class="mt-4 py-2 px-4 border ipn-border rounded-lg shadow-sm text-sm font-medium ipn-accent bg-white hover:bg-red-50 transition duration-150 ease-in-out absolute top-8 right-8 hidden" id="reset-button-placeholder">
+        &larr; Volver
+    </button>
+    <script>
+        // Muestra u oculta el botón de reset basado en el estado
+        document.getElementById('results-section').addEventListener('DOMSubtreeModified', () => {
+            const isVisible = !document.getElementById('results-section').classList.contains('hidden');
+            document.getElementById('reset-button-placeholder').classList.toggle('hidden', !isVisible);
+        });
+    </script>
+</body>
+</html>
