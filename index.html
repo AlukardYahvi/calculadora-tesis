@@ -197,7 +197,7 @@
                 </div>
 
                 <h2 class="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2">6. Estilo de Vida</h2>
-                <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-1">6.1. Actividad Física (Basado en guía IMSS)</h3>
+                <h3 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-1">6.1. Actividad Física</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                     <div>
                         <label for="activity_days" class="block text-sm font-medium text-gray-700">Días de ejercicio/semana</label>
@@ -684,7 +684,8 @@
             };
             
             try {
-                // Usamos fetch con 'no-cors' para Apps Script POST
+                // Usamos fetch con 'no-cors' para Apps Script POST. No podemos verificar la respuesta del servidor con certeza, 
+                // por lo que el mensaje de éxito aquí es optimista.
                 const response = await fetch(WEB_APP_URL, {
                     method: 'POST',
                     mode: 'no-cors', 
@@ -695,13 +696,13 @@
                     body: JSON.stringify(dataToSend)
                 });
                 
-                // Asumimos éxito debido a 'no-cors'.
-                statusDiv.textContent = "✅ Datos guardados en Sheets con éxito.";
+                // Asumimos éxito debido a 'no-cors'. Si el Apps Script falla, el navegador no lo reportará.
+                statusDiv.textContent = "✅ Datos guardados en Sheets (asumiendo que Apps Script está activo).";
                 statusDiv.className = "text-center p-3 mt-4 rounded-lg text-sm bg-green-100 text-green-800";
                 
             } catch (error) {
-                console.error("Error al enviar datos a Google Sheets. La aplicación local sigue funcionando.", error);
-                statusDiv.textContent = "❌ Error al guardar datos en Sheets. Revise la consola. El cálculo local se completó.";
+                console.error("Error de red al intentar conectar con Google Sheets (probablemente CORS o URL incorrecta).", error);
+                statusDiv.textContent = "❌ Error al conectar con Sheets. Revise la consola. El cálculo local se completó.";
                 statusDiv.className = "text-center p-3 mt-4 rounded-lg text-sm bg-red-100 text-red-800";
             }
         }
@@ -1177,7 +1178,7 @@
                  recList.innerHTML += `<li>Su fuerza es baja (riesgo de sarcopenia). Se recomienda iniciar un **programa de ejercicio de fuerza** (pesas, ligas, lagartijas) 2-3 veces por semana, supervisado.</li>`;
             }
             if (riskProfile.factors.some(f => f.text.includes("Sedentarismo"))) {
-                 recList.innerHTML += `<li>Su nivel de actividad es insuficiente. Intente cumplir la meta de 150 minutos de actividad moderada (caminar rápido) por semana. (Basado en guía IMSS)</li>`;
+                 recList.innerHTML += `<li>Su nivel de actividad es insuficiente. Intente cumplir la meta de 150 minutos de actividad moderada (caminar rápido) por semana.</li>`;
             }
             if (riskProfile.factors.some(f => f.text.includes("MASLD"))) {
                  recList.innerHTML += `<li>Su riesgo de Hígado Graso es alto. La intervención principal es la **pérdida de peso** y la **reducción drástica de azúcares y harinas refinadas**.</li>`;
