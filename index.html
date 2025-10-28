@@ -51,6 +51,7 @@
         </header>
 
         <form id="calc-form">
+            <div id="validation-message" class="hidden p-3 mb-4 rounded-lg bg-red-100 text-red-700 font-semibold"></div>
             <div id="input-form">
                 
                 <h2 class="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2">1. Datos Personales</h2>
@@ -352,6 +353,8 @@
                     </div>
                 </div>
 
+                <div id="sheet-status" class="text-center p-3 mt-4 rounded-lg text-sm hidden"></div>
+
                 <button id="calculate-button" class="w-full mt-4 py-3 px-6 border border-transparent rounded-lg shadow-glow text-lg font-medium text-white ipn-bg hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150 ease-in-out">
                     Calcular Riesgo Cardiovascular Integral
                 </button>
@@ -476,8 +479,11 @@
     <script>
         // =======================================================
         // === CALCULADORA DE RIESGO INTEGRAL V2 - LOGIC.JS ====
-        // === VERSIÓN COMPLETA Y FUNCIONAL (EMBEBIDA) ========
         // =======================================================
+        
+        // --- CONFIGURACIÓN DE INTEGRACIÓN CON GOOGLE SHEETS (IMPORTANTE) ---
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzARn6EFARmjVg5hkVMUyQeMAVx7jQgujLj724qg03zYiBtq6I1WU6k1-8E29q49jdA/exec";
+        // --------------------------------------------------------------------
         
         // --- CONSTANTES GLOBALES Y PUNTOS DE CORTE (Basados en IMSS y Guías) ---
         // Extraídos de las imágenes 1000167606.jpg y 1000167605.jpg
@@ -544,8 +550,6 @@
         };
 
         // --- TABLA DE DINAMOMETRÍA (1000167605.jpg) ---
-        // P10 (Percentil 10) es el punto de corte para "Baja función muscular"
-        // NOTA: Tu foto usa 'Kg', por eso el formulario pide 'Kg'.
         const DYNAMOMETRY_P10 = {
             hombres: {
                 "20-29": 33.9, 
@@ -560,21 +564,26 @@
                 "30-39": 20.7,
                 "40-49": 19.8,
                 "50-59": 16.6,
-                "60-69": 19.6, // Se respeta la tabla, aunque 19.6 sea > 16.6
-                "70-99": 13.0, // Se usa el valor más bajo (13.0 izq vs 13.7 der)
+                "60-69": 19.6, 
+                "70-99": 13.0, 
             }
         };
 
         /**
          * Función Principal: Se ejecuta cuando se presiona el botón "Calcular"
          */
-        function calculateRisk_v2() {
-            console.log("Iniciando cálculo v2...");
+        async function calculateRisk_v2() {
+            const validationDiv = document.getElementById('validation-message');
+            validationDiv.classList.add('hidden');
+            document.getElementById('sheet-status').classList.add('hidden');
+            
+            console.log("Iniciando cálculo y envío de datos v2...");
             
             // 1. Recolección y Cálculos de Edad
             const inputs = getUserInputs_v2();
             if (!inputs) {
-                alert("Por favor, complete todos los campos obligatorios (Sección 1-4) con valores válidos.");
+                validationDiv.textContent = "⚠️ Por favor, complete todos los campos obligatorios (Sección 1-4) con valores numéricos válidos (ej: edad, peso, estatura, glucosa, PAS/PAD).";
+                validationDiv.classList.remove('hidden');
                 return;
             }
 
@@ -587,19 +596,114 @@
             // 4. Cálculo del Score de Riesgo Heurístico (El "Cerebro")
             const riskProfile = calculateHeuristicScore_v2(inputs, metrics, healthStatus);
             
-            // 5. Generación de Resultados en la UI
+            // 5. Envío de Datos a Google Sheets (Asíncrono)
+            await sendDataToSheets(inputs, metrics, riskProfile);
+            
+            // 6. Generación de Resultados en la UI
             generateResults_v2(inputs, metrics, riskProfile);
             
-            // 6. Guardar resultados en variable global para 'copiar'
+            // 7. Guardar resultados en variable global para 'copiar'
             window.lastResultData_v2 = { inputs, metrics, riskProfile };
 
-            // 7. Ocultar formulario y mostrar resultados
+            // 8. Ocultar formulario y mostrar resultados
             document.getElementById('input-form').classList.add('hidden');
             document.getElementById('results-section').classList.remove('hidden');
             document.getElementById('reset-button').classList.remove('hidden');
             window.scrollTo(0, 0);
 
             console.log("Cálculo finalizado. Perfil de Riesgo:", riskProfile);
+        }
+
+        /**
+         * PASO 5.1: Envía los datos de entrada y resultados calculados a Google Sheets.
+         */
+        async function sendDataToSheets(inputs, metrics, riskProfile) {
+            const statusDiv = document.getElementById('sheet-status');
+            statusDiv.textContent = "Enviando datos a la base de datos (Google Sheets)...";
+            statusDiv.className = "text-center p-3 mt-4 rounded-lg text-sm bg-blue-100 text-blue-800";
+            statusDiv.classList.remove('hidden');
+            
+            // Consolidar todos los datos relevantes en un solo objeto para el POST
+            const dataToSend = {
+                timestamp: new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' }),
+                fullName: inputs.full_name || 'Sin nombre',
+                email: inputs.email || '',
+                gender: inputs.gender === 'male' ? 'Masculino' : 'Femenino',
+                age: inputs.age,
+                
+                // Signos y Antropometría
+                paSistolica: inputs.pa_used.s,
+                paDiastolica: inputs.pa_used.d,
+                paSource: inputs.pa_used.source,
+                hr: inputs.hr,
+                rr: inputs.rr,
+                weight: inputs.weight,
+                height_cm: inputs.height_cm,
+                waist: inputs.waist,
+                hip: inputs.hip,
+                
+                // Métricas calculadas
+                bmi: metrics.bmi,
+                bmiClass: metrics.bmi_class,
+                icc: metrics.icc,
+                iccClass: metrics.icc_class,
+                fliScore: metrics.fli_score,
+                fliClass: metrics.fli_class,
+
+                // Bioquímicos
+                glucose: inputs.glucose,
+                hba1c: inputs.hba1c,
+                totalChol: inputs.total_chol,
+                hdl: inputs.hdl,
+                ldl: inputs.ldl,
+                triglycerides: inputs.triglycerides,
+                tgHdlIndex: metrics.tg_hdl,
+                cholHdlIndex: metrics.chol_hdl,
+
+                // Estilo de Vida
+                activity: `${inputs.activity_days} días/${inputs.activity_duration} min (${inputs.activity_intensity})`,
+                smokerStatus: inputs.smoker_status,
+                ipaScore: metrics.ipa,
+                alcoholFreq: inputs.alcohol_freq,
+
+                // Comorbilidades
+                dmStatus: inputs.dm_status,
+                medDm: inputs.med_dm,
+                htaStatus: inputs.hta_status,
+                medHta: inputs.med_hta,
+                dlpStatus: inputs.dlp_status,
+                medDlp: inputs.med_dlp,
+                historyMI: inputs.history_mi,
+                familyHistory: inputs.family_history,
+                
+                // Resultados de Riesgo
+                riskLevel: riskProfile.level,
+                riskScore: riskProfile.score,
+                riskFactorsList: riskProfile.factors.map(f => f.text).join(' | '),
+                gripFactorText: riskProfile.grip_factor_text,
+            };
+            
+            try {
+                // Usamos fetch con 'no-cors' para Apps Script POST
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    cache: 'no-cache',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(dataToSend)
+                });
+                
+                // Asumimos éxito debido a 'no-cors'.
+                statusDiv.textContent = "✅ Datos guardados en Sheets con éxito.";
+                statusDiv.className = "text-center p-3 mt-4 rounded-lg text-sm bg-green-100 text-green-800";
+                
+            } catch (error) {
+                console.error("Error al enviar datos a Google Sheets. La aplicación local sigue funcionando.", error);
+                statusDiv.textContent = "❌ Error al guardar datos en Sheets. Revise la consola. El cálculo local se completó.";
+                statusDiv.className = "text-center p-3 mt-4 rounded-lg text-sm bg-red-100 text-red-800";
+            }
         }
 
 
@@ -651,10 +755,7 @@
                 hdl: getNum('hdl'),
                 ldl: getNum('ldl'),
                 triglycerides: getNum('triglycerides'),
-                // Sección 5 (BIA)
-                bia_fat_p: getNum('bia_fat_p'),
-                bia_visceral_p: getNum('bia_visceral_p'),
-                bia_metabolic_age: getNum('bia_metabolic_age'),
+                // Sección 5 (BIA) - No se usan para el cálculo principal, solo para logging si se completan
                 // Sección 6.1 (Actividad)
                 activity_days: getNum('activity_days'),
                 activity_duration: getNum('activity_duration'),
@@ -677,10 +778,10 @@
                 // Sección 8 (Historial)
                 history_mi: getVal('history_mi'),
                 history_angina: getVal('history_angina'),
-                family_history: getVal('family_history') // Campo añadido
+                family_history: getVal('family_history')
             };
 
-            // Validación básica (Campos obligatorios)
+            // Validación básica (Campos obligatorios - Secciones 1 a 4)
             if (!inputs.age || inputs.age < 0 || !inputs.height_cm || !inputs.weight || !inputs.waist || !inputs.hip || !inputs.glucose || !inputs.total_chol || !inputs.hdl || !inputs.triglycerides || !inputs.pa_used) {
                 return null; // Faltan datos clave
             }
@@ -754,7 +855,7 @@
                 metrics.ipa_class = "No aplica";
             }
 
-            // 6. FLI (Fatty Liver Index) - Lógica de la v1
+            // 6. FLI (Fatty Liver Index)
             const ln_tg = Math.log(triglycerides);
             const ln_waist = Math.log(waist);
             const X = (0.953 * ln_tg) + (0.139 * metrics.bmi) + (0.718 * ln_waist) - 13.9;
@@ -990,7 +1091,7 @@
             // 3. Evaluar
             if (maxGrip < p10_cutoff) {
                 const factor = {
-                    text: `Baja Fuerza Muscular (Dinamometría < P10)`,
+                    text: `Baja Fuerza Muscular (Dinamometría < ${p10_cutoff} Kg)`,
                     class: "risk-high"
                 };
                 // Aumenta el score porque la sarcopenia es un factor de riesgo CV grave
@@ -1007,7 +1108,7 @@
 
 
         /**
-         * PASO 5: Muestra los resultados en el HTML.
+         * PASO 6: Muestra los resultados en el HTML.
          */
         function generateResults_v2(inputs, metrics, riskProfile) {
             // 1. Nivel de Riesgo Global
@@ -1094,6 +1195,7 @@
             document.getElementById('input-form').classList.remove('hidden');
             document.getElementById('results-section').classList.add('hidden');
             document.getElementById('reset-button').classList.add('hidden');
+            document.getElementById('sheet-status').classList.add('hidden');
             // Limpia los campos del formulario
             document.getElementById('calc-form').reset();
             window.scrollTo(0, 0);
@@ -1104,7 +1206,9 @@
          */
         function copyResults_v2() {
             if (!window.lastResultData_v2) {
-                alert("No hay resultados para copiar. Por favor, calcula primero.");
+                // Reemplazando alert()
+                document.getElementById('validation-message').textContent = "No hay resultados para copiar. Por favor, calcula primero.";
+                document.getElementById('validation-message').classList.remove('hidden');
                 return;
             }
             
@@ -1114,7 +1218,7 @@
             let text = `--- PERFIL DE RIESGO CARDIOMETABÓLICO INTEGRAL ---\n`;
             text += `Nombre: ${inputs.full_name || 'No provisto'}\n`;
             text += `Edad: ${inputs.age} años\n`;
-            text += `Fecha: ${new Date().toLocaleString()}\n\n`;
+            text += `Fecha: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}\n\n`;
             
             text += `== RIESGO GLOBAL ==\n`;
             text += `NIVEL: ${riskProfile.level}\n`;
@@ -1150,10 +1254,18 @@
             // Copiar al portapapeles
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).then(() => {
-                    alert('¡Resultados copiados al portapapeles!');
+                    // Reemplazando alert() con un mensaje de estado temporal
+                    const statusDiv = document.getElementById('sheet-status');
+                    statusDiv.textContent = "¡Resultados copiados al portapapeles!";
+                    statusDiv.className = "text-center p-3 mt-4 rounded-lg text-sm bg-blue-100 text-blue-800";
+                    statusDiv.classList.remove('hidden');
+                    setTimeout(() => statusDiv.classList.add('hidden'), 3000);
+
                 }).catch(err => {
                     console.error('Error al copiar: ', err);
-                    alert('Error al copiar. Revisa la consola.');
+                    // Reemplazando alert() con un mensaje de estado
+                    document.getElementById('validation-message').textContent = "Error al copiar. Revisa la consola.";
+                    document.getElementById('validation-message').classList.remove('hidden');
                 });
             } else {
                 // Fallback para navegadores antiguos
@@ -1163,7 +1275,13 @@
                 textarea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
-                alert('¡Resultados copiados al portapapeles! (modo fallback)');
+                
+                // Reemplazando alert() con un mensaje de estado temporal
+                const statusDiv = document.getElementById('sheet-status');
+                statusDiv.textContent = "¡Resultados copiados al portapapeles! (modo fallback)";
+                statusDiv.className = "text-center p-3 mt-4 rounded-lg text-sm bg-blue-100 text-blue-800";
+                statusDiv.classList.remove('hidden');
+                setTimeout(() => statusDiv.classList.add('hidden'), 3000);
             }
         }
 
@@ -1172,12 +1290,12 @@
         // Asegura que el DOM esté cargado antes de asignar los botones
         document.addEventListener('DOMContentLoaded', () => {
             
-            // Asigna la función v2 al botón de cálculo
+            // Asigna la función v2 (ahora async) al botón de cálculo
             const calcButton = document.getElementById('calculate-button');
             if (calcButton) {
-                calcButton.onclick = (e) => {
+                calcButton.onclick = async (e) => { // Importante: Hacer la función async
                     e.preventDefault(); // Previene que el formulario se envíe
-                    calculateRisk_v2();
+                    await calculateRisk_v2();
                 };
             }
 
@@ -1188,7 +1306,7 @@
             }
 
             // Asigna la función de copiado
-             const copyButton = document.getElementById('copy-button');
+            const copyButton = document.getElementById('copy-button');
             if (copyButton) {
                 copyButton.onclick = copyResults_v2;
             }
